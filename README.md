@@ -5,4 +5,4 @@ This folder contains the code for pure GPS single-point positioning and INSAT. T
 
 The schematic diagram of the algorithm is shown as follows:
 
-<img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAJCjmiA_0ImdVJtlQMrqUnT3UOpL8QLAAKDFgAD1ghU7sgldn7s8rY2BA.png" alt="PixPin_2025-07-23_23-26-42.png" style="zoom:50%;" />
+![PixPin_2025-07-23_23-26-42.png](https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAJCjmiA_0ImdVJtlQMrqUnT3UOpL8QLAAKDFgAD1ghU7sgldn7s8rY2BA.png)
