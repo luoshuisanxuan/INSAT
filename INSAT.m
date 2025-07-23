@@ -63,8 +63,12 @@ trackResults.CNo.VSMIndex = ...
     zeros(1,floor(INSATsetting.tracklength/settings.CNo.VSMinterval));
 trackResults.CNo.PRMValue=0; %To avoid error message when
 trackResults.CNo.PRMIndex=0; %tracking window is closed before completion.
+%--- Multi-Correlator
+MultiCorrDistribution  =  -3:0.1:3;  
+trackResults.multiCorr            = zeros(length(MultiCorrDistribution), INSATsetting.tracklength);
 %--- Copy initial settings for all channels -------------------------------
 trackResults = repmat(trackResults, 1, settings.numberOfChannels);
+
 %% Initialize tracking variables ==========================================
 %--- DLL variables --------------------------------------------------------
 % Define early-late offset (in chips)
@@ -100,7 +104,7 @@ end
 dt=1*INSATsetting.X0(16);
 ddt0=-navSolutions.ddt(INSATsetting.StartTime*settings.navSolRate/1000);
 INSATsetting.X0(16)=-ddt0/1000;
-iUpdate=1; % 
+iUpdate=1;  % kalman update index
 
 %% Start processing channels ==============================================
     %=== Process the number of specified code periods =================
@@ -188,15 +192,15 @@ iUpdate=1; %
             trackResults(activeChnList(iChannel)).remCodePhase(iloopCnt)=Rx.remCodePhase(1,iChannel);
             tcode       = (Rx.remCodePhase(1,iChannel)-earlyLateSpc) : Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)-earlyLateSpc);
-            tcode2      = ceil(tcode+ 1);
+            tcode2      = ceil(tcode+ 4);
             earlyCode   = Rx.caCode(iChannel,tcode2);
             tcode       = (Rx.remCodePhase(1,iChannel)+earlyLateSpc) :Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)+earlyLateSpc);
-            tcode2      = ceil(tcode+ 1) ;
+            tcode2      = ceil(tcode+ 4) ;
             lateCode    = Rx.caCode(iChannel,tcode2);
             tcode       = Rx.remCodePhase(1,iChannel): Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel));
-            tcode2      = ceil(tcode+ 1);
+            tcode2      = ceil(tcode+ 4);
             promptCode  = Rx.caCode(iChannel,tcode2);
 
             %% Generate the carrier frequency to mix the signal to baseband -----------
@@ -285,6 +289,14 @@ iUpdate=1; %
             trackResults(activeChnList(iChannel)).Q_E(iloopCnt) = Q_E;
             trackResults(activeChnList(iChannel)).Q_P(iloopCnt) = Q_P;
             trackResults(activeChnList(iChannel)).Q_L(iloopCnt) = Q_L;
+
+            for iMultiCorr = 1:length(MultiCorrDistribution)  %<--
+                tcode       = (Rx.remCodePhase(1,iChannel)+MultiCorrDistribution(iMultiCorr)) : Rx.codePhaseStep(1,iChannel) : ...
+                ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)+MultiCorrDistribution(iMultiCorr));
+                tcode2      = ceil(tcode+ 4) ;
+                corrCode    = Rx.caCode(iChannel,tcode2);
+                trackResults(activeChnList(iChannel)).multiCorr(iMultiCorr,iloopCnt) = corrCode * iBasebandSignal';
+            end
 
             if (settings.CNo.enableVSM==1) && (iChannel==1)
                 if (rem(iloopCnt,settings.CNo.VSMinterval)==0)
