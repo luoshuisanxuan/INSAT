@@ -64,11 +64,14 @@ trackResults.CNo.VSMIndex = ...
 trackResults.CNo.PRMValue=0; %To avoid error message when
 trackResults.CNo.PRMIndex=0; %tracking window is closed before completion.
 %--- Multi-Correlator
-MultiCorrDistribution  =  -3:0.1:3;  
-trackResults.multiCorr            = zeros(length(MultiCorrDistribution), INSATsetting.tracklength);
+CorrShift = 1;
+if settings.multiCorrOn      
+    CorrShift = max(settings.multiCorrDistribution)+1;
+    trackResults.multiCorr = zeros(length(settings.multiCorrDistribution), INSATsetting.tracklength);
+end
+
 %--- Copy initial settings for all channels -------------------------------
 trackResults = repmat(trackResults, 1, settings.numberOfChannels);
-
 %% Initialize tracking variables ==========================================
 %--- DLL variables --------------------------------------------------------
 % Define early-late offset (in chips)
@@ -84,10 +87,10 @@ INSATsetting.pdicarr = settings.intTime;
 [tau1carr, tau2carr] = calcLoopCoef(settings.pllNoiseBandwidth,settings.pllDampingRatio, 0.25);
 
 % -------- Number of acqusired signals ------------------------------------
-TrackedNr =0 ;
 for channelNr = 1:settings.numberOfChannels
     if channel(channelNr).status == 'T'
-        TrackedNr = TrackedNr+1;
+        trackResults(channelNr).status = trackRes(channelNr).status;
+        trackResults(channelNr).PRN = trackRes(channelNr).PRN;
     end
 end
 % Start waitbar
@@ -174,16 +177,16 @@ iUpdate=1;  % kalman update index
             le=Rx.satPosenu(1,iChannel);ln=Rx.satPosenu(2,iChannel);lu=Rx.satPosenu(3,iChannel);
             norm_a=sqrt(le*le+ln*ln+lu*lu);
             a=[le;ln;lu]/norm_a;
-            %form measurement matrix
+            % form measurement matrix
             INSATsetting.H(iChannel,:)=[-a(1),-a(2),-a(3),zeros(1,12),-1,0];
             INSATsetting.H(iChannel+settings.numberOfChannels,:)=[zeros(1,3),+a(1),+a(2),+a(3),zeros(1,9),0,1];            
             Rx.dSv(iChannel)=(Rx.satPosenu(1:3,iChannel)-Rx.satPosenu0(1:3,iChannel))'*a;%sv displacement projection on LOS
             Rx.Vs(iChannel)=(Rx.satVelenu(1:3,iChannel)'-Rx.velenu)*a;%relative velocity between sv and user on LOS          
             Rx.dPlos(iChannel)=(INSATsetting.kmt*Rx.velenu)*a;%the user displacement between current and previous epoch
             Rx.dVlos(iChannel)=INSATsetting.X0(4:6)'*a;%estimated user velocity error on LOS
-            %update code frequency and phase
-            Rx.codeFreq(1,iChannel)=settings.codeFreqBasis*(1-(ddt0+Rx.Vs(iChannel))/settings.c);
-            Rx.codePhaseStep(1,iChannel) = Rx.codeFreq(1,iChannel) / settings.samplingFreq;                
+            % update code frequency and phase
+            % Rx.codeFreq(1,iChannel)=settings.codeFreqBasis*(1-(ddt0+Rx.Vs(iChannel))/settings.c);
+            % Rx.codePhaseStep(1,iChannel) = Rx.codeFreq(1,iChannel) / settings.samplingFreq;                
             %correct previous Rx.codePhase with estimated position error
             Rx.codePhase(1,iChannel) = Rx.codePhase(1,iChannel) + (dt+INSATsetting.X0(1:3)'*a)/settings.c*Rx.codeFreq(1,iChannel);
             %generate current 1ms code phase
@@ -192,19 +195,20 @@ iUpdate=1;  % kalman update index
             trackResults(activeChnList(iChannel)).remCodePhase(iloopCnt)=Rx.remCodePhase(1,iChannel);
             tcode       = (Rx.remCodePhase(1,iChannel)-earlyLateSpc) : Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)-earlyLateSpc);
-            tcode2      = ceil(tcode+ 4);
+            tcode2      = ceil(tcode+ CorrShift);
             earlyCode   = Rx.caCode(iChannel,tcode2);
             tcode       = (Rx.remCodePhase(1,iChannel)+earlyLateSpc) :Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)+earlyLateSpc);
-            tcode2      = ceil(tcode+ 4) ;
+            tcode2      = ceil(tcode+ CorrShift) ;
             lateCode    = Rx.caCode(iChannel,tcode2);
             tcode       = Rx.remCodePhase(1,iChannel): Rx.codePhaseStep(1,iChannel) : ...
                 ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel));
-            tcode2      = ceil(tcode+ 4);
+            tcode2      = ceil(tcode+ CorrShift);
             promptCode  = Rx.caCode(iChannel,tcode2);
 
             %% Generate the carrier frequency to mix the signal to baseband -----------
-            Rx.carrFreq(1,iChannel)=settings.IF-(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
+            % Rx.carrFreq(1,iChannel)=settings.IF-(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
+            dopplerFeedback(iloopCnt,iChannel) = -(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
             Rx.remCodePhase(1,iChannel) = (tcode(Rx.blksize(1,iChannel))+Rx.codePhaseStep(1,iChannel))- settings.codeLength;
             time=(0:Rx.blksize(1,iChannel)) ./ settings.samplingFreq;
 
@@ -257,7 +261,12 @@ iUpdate=1;  % kalman update index
             % Save carrier frequency for current correlation
             trackResults(channelNr).carrFreq(iloopCnt) = Rx.carrFreq(1,iChannel);
             % Modify carrier freq based on NCO command
-            Rx.carrFreq(1,iChannel) = Rx.carrFreqBasis(1,iChannel) + Rx.carrNco(1,iChannel);
+            % Rx.carrFreq(1,iChannel) = Rx.carrFreqBasis(1,iChannel) + Rx.carrNco(1,iChannel);
+            if iloopCnt == 1
+                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + dopplerFeedback(iloopCnt,iChannel);
+            else
+                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + dopplerFeedback(iloopCnt-1,iChannel) + (dopplerFeedback(iloopCnt,iChannel)-dopplerFeedback(iloopCnt-1,iChannel))/20;
+            end
 
             % Implement carrier loop filter and generate NCO command
             INSATsetting.Z(iChannel+settings.numberOfChannels,1)=(Rx.carrErrorold(1,iChannel)+(Rx.carrError(1,iChannel)-Rx.carrErrorold(1,iChannel))...
@@ -267,20 +276,24 @@ iUpdate=1;  % kalman update index
             Rx.codeError(1,iChannel) = (sqrt(I_E * I_E + Q_E * Q_E) - sqrt(I_L * I_L + Q_L * Q_L)) / ...
                 (sqrt(I_E * I_E + Q_E * Q_E) + sqrt(I_L * I_L + Q_L * Q_L));           
             % Implement code loop filter and generate NCO command
-            codeNco(1,iChannel) = Rx.oldCodeNco(1,iChannel) + (tau2code/tau1code) * (Rx.codeError(1,iChannel)...
+            Rx.codeNco(1,iChannel) = Rx.oldCodeNco(1,iChannel) + (tau2code/tau1code) * (Rx.codeError(1,iChannel)...
                  - Rx.oldCodeError(1,iChannel)) + Rx.codeError(1,iChannel) * (INSATsetting.pdicode/tau1code);
-            Rx.oldCodeNco(1,iChannel)   = codeNco(1,iChannel);
+            Rx.oldCodeNco(1,iChannel)   = Rx.codeNco(1,iChannel);
             Rx.oldCodeError(1,iChannel) = Rx.codeError(1,iChannel);
+            %update code frequency and phase
+            Rx.codeFreq(1,iChannel) = settings.codeFreqBasis + (Rx.carrFreq(1,iChannel)-settings.IF)/1540; % - codeNco(1,iChannel)
+            Rx.codePhaseStep(1,iChannel) = Rx.codeFreq(1,iChannel) / settings.samplingFreq;  
+            
             % Save code frequency for current correlation
             trackResults(channelNr).codeFreq(iloopCnt) = Rx.codeFreq(1,iChannel);
             
             % Modify code freq based on NCO command
-            Rx.codeFreq(1,iChannel) = settings.codeFreqBasis - codeNco(1,iChannel);
+            % Rx.codeFreq(1,iChannel) = settings.codeFreqBasis - Rx.codeNco(1,iChannel);
             INSATsetting.Z(iChannel,1)=(Rx.codeErrorold(1,iChannel)+(Rx.codeError(1,iChannel)-Rx.codeErrorold(1,iChannel))...
                 /Rx.blksize(1,iChannel)*(Rx.blksize(1,iChannel)-rem((Rx.samplepos(1,iChannel)-Rx.minpos),Rx.blksize(1,iChannel))))/Rx.codeFreq(1,iChannel)*settings.c;
             %% Record various measures to show in postprocessing ----------------------
             trackResults(activeChnList(iChannel)).dllDiscr(iloopCnt) = Rx.codeError(1,iChannel);
-            trackResults(activeChnList(iChannel)).dllDiscrDilt(iloopCnt) = codeNco(1,iChannel);
+            trackResults(activeChnList(iChannel)).dllDiscrDilt(iloopCnt) = Rx.codeNco(1,iChannel);
             trackResults(activeChnList(iChannel)).pllDiscr(iloopCnt) = Rx.carrError(1,iChannel);
             trackResults(activeChnList(iChannel)).pllDiscrDilt(iloopCnt) = Rx.carrNco(1,iChannel);
             trackResults(activeChnList(iChannel)).I_E(iloopCnt) = I_E;
@@ -289,13 +302,15 @@ iUpdate=1;  % kalman update index
             trackResults(activeChnList(iChannel)).Q_E(iloopCnt) = Q_E;
             trackResults(activeChnList(iChannel)).Q_P(iloopCnt) = Q_P;
             trackResults(activeChnList(iChannel)).Q_L(iloopCnt) = Q_L;
-
-            for iMultiCorr = 1:length(MultiCorrDistribution)  %<--
-                tcode       = (Rx.remCodePhase(1,iChannel)+MultiCorrDistribution(iMultiCorr)) : Rx.codePhaseStep(1,iChannel) : ...
-                ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)+MultiCorrDistribution(iMultiCorr));
-                tcode2      = ceil(tcode+ 4) ;
-                corrCode    = Rx.caCode(iChannel,tcode2);
-                trackResults(activeChnList(iChannel)).multiCorr(iMultiCorr,iloopCnt) = corrCode * iBasebandSignal';
+            
+            if settings.multiCorrOn
+                for iMultiCorr = 1:length(settings.multiCorrDistribution)  %<--
+                    tcode       = (Rx.remCodePhase(1,iChannel)+settings.multiCorrDistribution(iMultiCorr)) : Rx.codePhaseStep(1,iChannel) : ...
+                    ((Rx.blksize(1,iChannel)-1)*Rx.codePhaseStep(1,iChannel)+Rx.remCodePhase(1,iChannel)+settings.multiCorrDistribution(iMultiCorr));
+                    tcode2      = ceil(tcode+ CorrShift) ;
+                    corrCode    = Rx.caCode(iChannel,tcode2);
+                    trackResults(activeChnList(iChannel)).multiCorr(iMultiCorr,iloopCnt) = corrCode * iBasebandSignal';
+                end
             end
 
             if (settings.CNo.enableVSM==1) && (iChannel==1)

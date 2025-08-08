@@ -41,7 +41,7 @@ function settings = initSettings()
 %% Processing settings ====================================================
 % Number of milliseconds to be processed used 36000 + any transients (see
 % below - in Nav parameters) to ensure nav subframes are provided
-settings.msToProcess        = 420000;        %[ms]
+settings.msToProcess        = 410000;        %[ms]
 settings.ms                 = 1;
 % Number of channels to be used for signal processing
 settings.numberOfChannels   = 6;
@@ -58,9 +58,8 @@ settings.skipNumberOfBytes     = 0;
 
 % TEXBAT
 % Intermediate, sampling and code frequencies
-settings.fileName           = 'E:\TEXBAT\ds6.bin';
-settings.dir                = 'E:\TEXBAT\postResult\ds6';
-settings.imuDir             = 'E:\INSAT\imuInfo.mat';
+settings.fileName           = 'F:\TEXBAT\ds6.bin';
+settings.dir                = 'F:\TEXBAT\postResult\ds6'; % F:\TEXBAT
 settings.IF                 = 0; % 3.996e6;     % [Hz] 
 settings.samplingFreq       = 25e6; % 16.369e6;   % [Hz]
 settings.fileType           = 2;
@@ -114,7 +113,8 @@ settings.pllNoiseBandwidth       = 20;      %[Hz]
 settings.intTime                 = 0.001;      %[s]
 %Enable INSAT when 1, otherwise scalar tracking.
 settings.INSAT = 1;
-
+settings.multiCorrOn = 1;
+settings.multiCorrDistribution  =  -3:0.2:3;
 %% Navigation solution settings ===========================================
 
 % Period for calculating pseudoranges and position

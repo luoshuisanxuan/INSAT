@@ -24,13 +24,35 @@ function [Rx,INSATsetting] = initINSATsetting(settings,channel,trackRes,svTimeTa
     INSATsetting.r2d = 180/pi;         % rad to deg
     INSATsetting.D2r = pi/180;         % deg to rad
     INSATsetting.StartTime = 1000;     % start time for INSAT /ms
-    INSATsetting.tracklength = 390000; % total track length /ms
+    INSATsetting.tracklength = 400000; % total track length /ms
     %adaptive filtering window for the Kalman filter measurements
     INSATsetting.cnt=1;
     INSATsetting.lastn=50;
-    %% INS Measurements 
-    load(settings.imuDir)
-        
+    %% INS Measurements  
+    texbatCleanDynamic = load('texbatCleanDynamic.mat');
+    INSATsetting.GPSTime = texbatCleanDynamic.GPSTime';        
+    INSATsetting.INSlat = texbatCleanDynamic.INSlat';
+    INSATsetting.INSlon = texbatCleanDynamic.INSlon';
+    INSATsetting.INShei = texbatCleanDynamic.INShei';
+    INSATsetting.INSroll = texbatCleanDynamic.INSroll;
+    INSATsetting.INSpitch = texbatCleanDynamic.INSpitch;
+    INSATsetting.INShead = texbatCleanDynamic.INShead;
+    INSATsetting.INSve = texbatCleanDynamic.INSve';
+    INSATsetting.INSvn = texbatCleanDynamic.INSvn';
+    INSATsetting.INSvu = texbatCleanDynamic.INSvu';
+    INSATsetting.INSaccy = texbatCleanDynamic.INSaccy;
+    INSATsetting.INSaccx = texbatCleanDynamic.INSaccx;
+    INSATsetting.INSaccz = texbatCleanDynamic.INSaccz;
+    INSATsetting.INSgyroy = texbatCleanDynamic.INSgyroy;
+    INSATsetting.INSgyrox = texbatCleanDynamic.INSgyrox;
+    INSATsetting.INSgyroz = texbatCleanDynamic.INSgyroz;
+    INSATsetting.INSaccby = texbatCleanDynamic.INSaccby;
+    INSATsetting.INSaccbx = texbatCleanDynamic.INSaccbx;
+    INSATsetting.INSaccbz = texbatCleanDynamic.INSaccbz;
+    INSATsetting.INSgyrody = texbatCleanDynamic.INSgyrody;
+    INSATsetting.INSgyrodx = texbatCleanDynamic.INSgyrodx;
+    INSATsetting.INSgyrodz = texbatCleanDynamic.INSgyrodz;
+    
     %% KF parament
     INSATsetting.stateno = 17; %number of states
     INSATsetting.Qw = diag([diag(1e0*eye(3))',diag(1e-3*eye(3))',1*diag(1e-2*eye(3))',1*diag(1e-8*eye(3))',1*diag(1e-8*eye(3))',1e-6,1e-1]);
@@ -169,7 +191,11 @@ function [Rx,INSATsetting] = initINSATsetting(settings,channel,trackRes,svTimeTa
             %C/No computation
             Rx.vsmCnt(channelNr)  = 0;
             caCode0 = generateCAcode(trackRes(1,activeChnList(channelNr)).PRN);
-            Rx.caCode(channelNr,:) =[caCode0(1020) caCode0(1021) caCode0(1022) caCode0(1023) caCode0 caCode0(1) caCode0(2) caCode0(3) caCode0(4)];
+            if settings.multiCorrOn
+                Rx.caCode(channelNr,:) =[caCode0(1020) caCode0(1021) caCode0(1022) caCode0(1023) caCode0 caCode0(1) caCode0(2) caCode0(3) caCode0(4)];
+            else
+                Rx.caCode(channelNr,:) =[caCode0(1023) caCode0 caCode0(1)];
+            end
             Rx.blksize(1,channelNr) = ceil((settings.codeLength-Rx.remCodePhase(1,channelNr)) / Rx.codePhaseStep(1,channelNr));
     end % for channelNr
     Rx.transmitTime0 = Rx.transmitTime;

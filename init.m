@@ -59,7 +59,7 @@ fprintf('                   -------------------------------\n\n');
 
 %% Initialize constants, settings =========================================
 settings = initSettings();
-% mkdir(settings.dir);
+mkdir(settings.dir);
 
 %% Generate plot of raw data and ask if ready to start processing =========
 try
