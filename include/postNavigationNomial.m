@@ -180,9 +180,7 @@ navStep=settings.samplingFreq/settings.navSolRate;
 
 %% Initialization of current measurement ==================================
 % settings.skipNumberOfSamples = settings.skipNumberOfBytes;
-for currMeasNr =1:fix((min(lastSample) - ...
-        settings.samplingFreq/settings.navSolRate-...
-        settings.skipNumberOfSamples) /navStep)
+for currMeasNr =1:37999%fix((min(lastSample)-settings.samplingFreq/settings.navSolRate-settings.skipNumberOfSamples)/navStep)
 % for currMeasNr =1:fix((settings.msToProcess - max(subFrameStart)) / ...
 %                                                      (1000/settings.navSolRate))
     % Exclude satellites, that are below elevation mask
@@ -351,5 +349,4 @@ for currMeasNr =1:fix((min(lastSample) - ...
     end % if size(activeChnList, 2) > 3
     
 end
-abc =1 ;
 toc
