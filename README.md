@@ -7,5 +7,5 @@ The schematic diagram of the algorithm is shown as follows:
 
 ![PixPin_2025-07-23_23-26-42.png](https://youke1.picui.cn/s1/2025/07/23/6881039f62ea3.png)
 
-When using this code, please cite the following work: **Huang C, Feng F, Duan C, et al. To Lock the Authentic Signals: Mitigating GNSS Spoofing with INS-Aided Tracking [J]. Information Fusion, 2025: 103596. **
+When using this code, please cite the following work: Huang C, Feng F, Duan C, et al. To Lock the Authentic Signals: Mitigating GNSS Spoofing with INS-Aided Tracking [J]. Information Fusion, 2025: 103596. 
 The full text of the paper is available at: https://www.sciencedirect.com/science/article/abs/pii/S1566253525006682.
