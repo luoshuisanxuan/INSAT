@@ -1,4 +1,4 @@
-function [Rx,trackResults] = INSAT(fid, channel,trackRes,navSolutions,eph,activeChnList,svTimeTable, settings)
+function [INSATsetting,Rx,trackResults] = INSAT(fid, channel,trackRes,navSolutions,eph,activeChnList,svTimeTable, settings)
 % Performs code and carrier tracking  and navigation based on INS/GPS deep integration
 %
 %[trackResults, channel] = tracking(fid, channel,trackRes,navSolutions,eph,activeChnList,svTimeTable, settings)
@@ -104,10 +104,11 @@ else
     dataAdaptCoeff=2;
 end
 
-dt=1*INSATsetting.X0(16);
-ddt0=-navSolutions.ddt(INSATsetting.StartTime*settings.navSolRate/1000);
-INSATsetting.X0(16)=-ddt0/1000;
 iUpdate=1;  % kalman update index
+dt   = INSATsetting.dt(iUpdate);
+ddt0 = INSATsetting.ddt(iUpdate);
+INSATsetting.X0(16)=-ddt0/1000;
+
 
 %% Start processing channels ==============================================
     %=== Process the number of specified code periods =================
@@ -208,7 +209,7 @@ iUpdate=1;  % kalman update index
 
             %% Generate the carrier frequency to mix the signal to baseband -----------
             % Rx.carrFreq(1,iChannel)=settings.IF-(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
-            dopplerFeedback(iloopCnt,iChannel) = -(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
+            INSATsetting.dopplerFeedback(iloopCnt,iChannel) = -(ddt0+Rx.Vs(iChannel))/settings.c*1575.42e6;
             Rx.remCodePhase(1,iChannel) = (tcode(Rx.blksize(1,iChannel))+Rx.codePhaseStep(1,iChannel))- settings.codeLength;
             time=(0:Rx.blksize(1,iChannel)) ./ settings.samplingFreq;
 
@@ -263,9 +264,10 @@ iUpdate=1;  % kalman update index
             % Modify carrier freq based on NCO command
             % Rx.carrFreq(1,iChannel) = Rx.carrFreqBasis(1,iChannel) + Rx.carrNco(1,iChannel);
             if iloopCnt == 1
-                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + dopplerFeedback(iloopCnt,iChannel);
+                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + INSATsetting.dopplerFeedback(iloopCnt,iChannel);  %  Rx.carrNco(1,iChannel) +
             else
-                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + dopplerFeedback(iloopCnt-1,iChannel) + (dopplerFeedback(iloopCnt,iChannel)-dopplerFeedback(iloopCnt-1,iChannel))/20;
+                Rx.carrFreq(1,iChannel) = Rx.carrNco(1,iChannel) + settings.IF + INSATsetting.dopplerFeedback(iloopCnt-1,iChannel)...  % Rx.carrNco(1,iChannel) +
+                + (INSATsetting.dopplerFeedback(iloopCnt,iChannel)-INSATsetting.dopplerFeedback(iloopCnt-1,iChannel))/20;
             end
 
             % Implement carrier loop filter and generate NCO command
@@ -278,10 +280,11 @@ iUpdate=1;  % kalman update index
             % Implement code loop filter and generate NCO command
             Rx.codeNco(1,iChannel) = Rx.oldCodeNco(1,iChannel) + (tau2code/tau1code) * (Rx.codeError(1,iChannel)...
                  - Rx.oldCodeError(1,iChannel)) + Rx.codeError(1,iChannel) * (INSATsetting.pdicode/tau1code);
+            
             Rx.oldCodeNco(1,iChannel)   = Rx.codeNco(1,iChannel);
             Rx.oldCodeError(1,iChannel) = Rx.codeError(1,iChannel);
             %update code frequency and phase
-            Rx.codeFreq(1,iChannel) = settings.codeFreqBasis + (Rx.carrFreq(1,iChannel)-settings.IF)/1540; % - codeNco(1,iChannel)
+            Rx.codeFreq(1,iChannel) = settings.codeFreqBasis + INSATsetting.dopplerFeedback(iloopCnt,iChannel)/1540; % - codeNco(1,iChannel)
             Rx.codePhaseStep(1,iChannel) = Rx.codeFreq(1,iChannel) / settings.samplingFreq;  
             
             % Save code frequency for current correlation
@@ -293,9 +296,9 @@ iUpdate=1;  % kalman update index
                 /Rx.blksize(1,iChannel)*(Rx.blksize(1,iChannel)-rem((Rx.samplepos(1,iChannel)-Rx.minpos),Rx.blksize(1,iChannel))))/Rx.codeFreq(1,iChannel)*settings.c;
             %% Record various measures to show in postprocessing ----------------------
             trackResults(activeChnList(iChannel)).dllDiscr(iloopCnt) = Rx.codeError(1,iChannel);
-            trackResults(activeChnList(iChannel)).dllDiscrDilt(iloopCnt) = Rx.codeNco(1,iChannel);
+            trackResults(activeChnList(iChannel)).dllDiscrFilt(iloopCnt) = Rx.codeNco(1,iChannel);
             trackResults(activeChnList(iChannel)).pllDiscr(iloopCnt) = Rx.carrError(1,iChannel);
-            trackResults(activeChnList(iChannel)).pllDiscrDilt(iloopCnt) = Rx.carrNco(1,iChannel);
+            trackResults(activeChnList(iChannel)).pllDiscrFilt(iloopCnt) = Rx.carrNco(1,iChannel);
             trackResults(activeChnList(iChannel)).I_E(iloopCnt) = I_E;
             trackResults(activeChnList(iChannel)).I_P(iloopCnt) = I_P;
             trackResults(activeChnList(iChannel)).I_L(iloopCnt) = I_L;
@@ -412,9 +415,11 @@ iUpdate=1;  % kalman update index
         Rx.vnold=Rx.vel_l(iloopCnt+1,2);
         Rx.vuold=Rx.vel_l(iloopCnt+1,3);
         Rx.velold = Rx.vel_l(iloopCnt+1,:);
-        dt=INSATsetting.X0(16);
-        ddt=INSATsetting.X0(17);
-        ddt0=ddt0+ddt;
+        % dt=INSATsetting.X0(16);
+        % ddt=INSATsetting.X0(17);
+        % ddt0=ddt0+ddt;
+        dt   = INSATsetting.dt(iUpdate);
+        ddt0 = INSATsetting.ddt(iUpdate);
         [Rx.pos_kf(1,1),Rx.pos_kf(1,2),Rx.pos_kf(1,3)]=geo2cart([Rx.est_lat(iloopCnt+1)*INSATsetting.r2d,0,0],[Rx.est_lon(iloopCnt+1)*INSATsetting.r2d,0,0], Rx.est_height(iloopCnt+1), 5);
         vel_kf=(Rx.est_DCMel_KF'*Rx.vel_l(iloopCnt+1,:)')';
         Rx.velenu=Rx.vel_l(iloopCnt+1,:);  
